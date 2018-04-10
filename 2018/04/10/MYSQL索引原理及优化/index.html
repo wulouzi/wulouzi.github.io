@@ -1,0 +1,249 @@
+<!DOCTYPE html><html lang="[&quot;zh-CN&quot;,&quot;en&quot;,&quot;default&quot;]"><head><meta http-equiv="content-type" content="text/html; charset=utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport"><meta content="yes" name="apple-mobile-web-app-capable"><meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"><meta content="telephone=no" name="format-detection"><meta name="description"><title>MYSQL索引原理及优化 | 逐浪钱塘</title><link rel="stylesheet" type="text/css" href="/css/style.css?v=0.0.0"><link rel="stylesheet" type="text/css" href="//cdn.bootcss.com/normalize/8.0.0/normalize.min.css"><link rel="stylesheet" type="text/css" href="//cdn.bootcss.com/pure/1.0.0/pure-min.css"><link rel="stylesheet" type="text/css" href="//cdn.bootcss.com/pure/1.0.0/grids-responsive-min.css"><link rel="stylesheet" href="//cdn.bootcss.com/font-awesome/4.7.0/css/font-awesome.min.css"><script type="text/javascript" src="//cdn.bootcss.com/jquery/3.3.1/jquery.min.js"></script><link rel="Shortcut Icon" type="image/x-icon" href="/favicon.ico"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="apple-touch-icon-precomposed" href="/apple-touch-icon.png"></head><body><div class="body_container"><div id="header"><div class="site-name"><h1 class="hidden">MYSQL索引原理及优化</h1><a id="logo" href="/.">逐浪钱塘</a><p class="description">Stay hungry, stay foolish.</p></div><div id="nav-menu"><a class="current" href="/."><i class="fa fa-home"> 首页</i></a><a href="/archives/"><i class="fa fa-archive"> 归档</i></a><a href="/about/"><i class="fa fa-user"> 关于</i></a><a href="/atom.xml"><i class="fa fa-rss"> 订阅</i></a></div></div><div class="pure-g" id="layout"><div class="pure-u-1 pure-u-md-3-4"><div class="content_container"><div class="post"><h1 class="post-title">MYSQL索引原理及优化</h1><div class="post-meta">Apr 10, 2018<span> | </span><span class="category"><a href="/categories/DATABASE/">DATABASE</a></span></div><div class="post-content"><h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>写这篇文章的起因是因为有工程同事提出报表的sql查询很慢，查一个月要49s，简直不能忍（虽然后面检查出来是时间单位弄错，其实是49ms）。想到自己还不了解mysql的索引原理，就去查了些索引相关资料以及慢查询优化。在查索引的时候，又不得不去了解下磁盘的结构和工作原理，以便于理解B树，B+树，B*树等。</p>
+<h4 id="磁盘的结构和工作原理"><a href="#磁盘的结构和工作原理" class="headerlink" title="磁盘的结构和工作原理"></a>磁盘的结构和工作原理</h4><h5 id="结构"><a href="#结构" class="headerlink" title="结构"></a>结构</h5><p>将磁盘想象成一张黑胶唱片，盘面上有很多磁道，数据就存在磁道上。磁盘可以是单片，也可以多片组成盘组。每个盘片分2个面。盘片装在一根主轴上，绕主轴旋转。当磁道在磁头下通过时，磁头对磁盘进行数据读写。各个盘面上半径相同的磁道组成了一个圆柱面，我们称为柱面。因此，柱面的个数也就是盘面上的磁道数。</p>
+<p><img src="http://hi.csdn.net/attachment/201106/7/8394323_13074405911zG7.jpg" alt="image"></p>
+<h4 id="磁盘读写原理"><a href="#磁盘读写原理" class="headerlink" title="磁盘读写原理"></a>磁盘读写原理</h4><p>磁盘上数据必须用一个三维地址唯一标示：柱面号、盘面号、块号(磁道上的盘块)。</p>
+<ul>
+<li><p>磁盘读写某一指定数据分3个步骤</p>
+<ol>
+<li>首先移动臂根据柱面号使磁头移动到所需要的柱面上，这一过程被称为定位或查找 。</li>
+<li>到柱面后再根据盘面号找到对应的盘面。</li>
+<li>找到盘面后再根据块号找到磁道上的盘块。</li>
+</ol>
+</li>
+<li><p>根据上面的3个步骤，可以知道读写某一指定数据的时间消耗同样有3部分时间组成</p>
+<ul>
+<li>查找时间(seek time)Ts：完成上述步骤(i)所需要的时间。这部分时间代价最高，最大可达到0.1s左右。</li>
+<li>等待时间(latency time)Tl：完成上述步骤(iii)所需要的时间。由于盘片绕主轴旋转速度很快，一般为7200转/分(电脑硬盘的性能指标之一, 家用的普通硬盘的转速一般有5400rpm(笔记本)、7200rpm几种)。因此一般旋转一圈大约0.0083s（以7200rpm为例，转一圈的时间是1/240，大约为0.004s）。</li>
+<li>传输时间(transmission time)Tt：数据通过系统总线传送到内存的时间，一般传输一个字节(byte)大概0.02us=2*10^(-8)s</li>
+</ul>
+</li>
+</ul>
+<h5 id="小结"><a href="#小结" class="headerlink" title="小结"></a>小结</h5><p>磁盘读取数据是以盘块(block)为基本单位的。位于同一盘块中的所有数据都能被一次性全部读取出来。而磁盘IO代价主要花费在查找时间Ts上。因此我们应该尽量将相关信息存放在同一盘块，同一磁道中。或者至少放在同一柱面或相邻柱面上，以求在读/写信息时尽量减少磁头来回移动的次数，避免过多的查找时间Ts。</p>
+<p>因此需要一种高效合理的数据结构。B-tree结构，以及相关的变种结构：B+-tree结构和B*-tree结构</p>
+<h4 id="用阶定义B-tree"><a href="#用阶定义B-tree" class="headerlink" title="用阶定义B-tree"></a>用阶定义B-tree</h4><p>B 树又叫平衡多路查找树。一棵m阶的B树(注：切勿简单的认为一棵m阶的B树是m叉树，虽然存在四叉树，八叉树，KD树，及vp/R树/R*树/R+树/X树/M树/线段树/希尔伯特R树/优先R树等空间划分树，但与B树完全不等同)的特性如下：</p>
+<ul>
+<li>树中每个结点最多含有m个孩子（m&gt;=2）；</li>
+<li>除根结点和叶子结点外，其它每个结点至少有[ceil(m / 2)]个孩子（其中ceil(x)是一个取上限的函数）；</li>
+<li>若根结点不是叶子结点，则至少有2个孩子（特殊情况：没有孩子的根结点，即根结点为叶子结点，整棵树只有一个根结点）；</li>
+<li>所有叶子结点都出现在同一层，叶子结点不包含任何关键字信息(可以看做是外部接点或查询失败的接点，实际上这些结点不存在，指向这些结点的指针都为null)。</li>
+<li>每个非终端结点中包含有n个关键字信息：(n，P0，K1，P1，K2，P2，……，Kn，Pn)。其中：<ul>
+<li>Ki (i=1…n)为关键字，且关键字按顺序升序排序K(i-1)&lt; Ki。</li>
+<li>Pi为指向子树根的接点，且指针P(i-1)指向子树种所有结点的关键字均小于Ki，但都大于K(i-1)。 </li>
+<li>关键字的个数n必须满足： [ceil(m/2)-1] &lt;= n &lt;= m-1。</li>
+</ul>
+</li>
+</ul>
+<p><strong>换句话说，一颗m阶B-tree必须满足下列条件</strong></p>
+<ul>
+<li>每个结点最多有m颗子树</li>
+<li>除了根结点外，其它每个非叶结点上至少有ceil(m/2)个子树</li>
+<li>根结点至少有2个子树，除非只有一个根结点</li>
+<li>所有叶结点都在同一层，B-tree的叶结点可以看做外部结点，不包含任何信息</li>
+<li>有j个孩子的非叶结点恰好有j-1个关键码，关键码按递增次序排列</li>
+</ul>
+<h4 id="用度定义B-tree"><a href="#用度定义B-tree" class="headerlink" title="用度定义B-tree"></a>用度定义B-tree</h4><p>B-tree中每一个结点所包含的关键字数目有一个上界和下界，这个下界可以用B-tree的最小度数m表示（注意：使用最小度数表示下界，而非最小度数就是下界）。定义如下：</p>
+<ul>
+<li>每个非根内结点最少有m个子女，每个非根内结点最少要有m-1个关键字，如果树非空，则根节点至少包含一个关键字</li>
+<li>每个结点至多包含2m-1个关键字。所以一个内结点最多有2m个子女，如果一个结点恰好有2m-1个关键字，那么就说这个结点是满的</li>
+<li>当关键字数m=2的时候，B-tree是最简单的，此时一个内结点最多有2，3，或者4个子女，即2-3-4树</li>
+</ul>
+<h5 id="小结-1"><a href="#小结-1" class="headerlink" title="小结"></a>小结</h5><p>B树中的每个结点根据实际情况可以包含大量的关键字信息和分支(当然是不能超过磁盘块的大小，根据磁盘驱动(disk drives)的不同，一般块的大小在1k~4k左右)；这样树的深度降低了，这就意味着查找一个元素只要很少结点从外存磁盘中读入内存，很快访问到要查找的数据。</p>
+<h4 id="模拟B-tree查找"><a href="#模拟B-tree查找" class="headerlink" title="模拟B-tree查找"></a>模拟B-tree查找</h4><p>现有B-tree结构如下，为了简单，这里用少量数据构造一棵3叉树的形式，实际应用中的B树结点中关键字很多的。上面的图中比如根结点，其中17表示一个磁盘文件的文件名；小红方块表示这个17文件内容在硬盘中的存储位置；p1表示指向17左子树的指针。<br><img src="http://hi.csdn.net/attachment/201106/7/8394323_13074405906V6Q.jpg" alt="image"></p>
+<p>假如每个盘块可以正好存放一个B树的结点（正好存放2个文件名）。那么一个BTNODE结点就代表一个盘块，而子树指针就是存放另外一个盘块的地址。</p>
+<p>模拟下查找文件36的过程：</p>
+<ul>
+<li>根据根结点指针找到文件目录的根磁盘块1，将其中的信息导入内存。【磁盘IO操作 1次】    </li>
+<li>此时内存中有两个文件名17、35和三个存储其他磁盘页面地址的数据。根据算法我们发现：35&lt;36，因此我们找到指针p3。</li>
+<li>根据p3指针，我们定位到磁盘块4，并将其中的信息导入内存。【磁盘IO操作 2次】    </li>
+<li>此时内存中有两个文件名65，87和三个存储其他磁盘页面地址的数据。根据算法我们发现：36&lt;65，因此我们找到指针p1。</li>
+<li>根据p1指针，我们定位到磁盘块9，并将其中的信息导入内存。【磁盘IO操作 3次】    </li>
+<li>此时内存中有两个文件名36，60。根据算法我们查找到文件名36，并定位了该文件内存的磁盘地址。</li>
+</ul>
+<h5 id="小结-2"><a href="#小结-2" class="headerlink" title="小结"></a>小结</h5><p>由上步骤可知，IO的次数跟B-tree的高度有关，那么高度是由什么决定的呢？</p>
+<p>若m阶B-tree某一非叶子节点包含N个关键字，则此非叶子节点含有N+1个孩子结点，而所有的叶子结点都在第<code>$I$</code>层，我们可以得出：</p>
+<ul>
+<li>因为根至少有两个孩子，因此第<code>$2$</code>层至少有两个结点。</li>
+<li>除根和叶子外，其它结点至少有<code>$ceil(m/2)$</code>个孩子，</li>
+<li>因此在第<code>$3$</code>层至少有<code>$2ceil(m/2)$</code>个结点，</li>
+<li>在第<code>$4$</code>层至少有<code>$2(ceil(m/2))^2$</code>个结点，</li>
+<li>在第<code>$I$</code>层至少有<code>$2(ceil(m/2))^{I-2}$</code>个结点，于是有：<code>$N+1\geq2(ceil(m/2))^{I-2}$</code>，即<code>$I\leq\log_{ceil(m/2)}(N+1)+2$</code></li>
+<li>因此，当B-tree包含有N个关键字时，B-tree的最大高度为<code>$I-1$</code>（因为计算B树高度时，叶结点所在层不计算在内），由上式可知，<code>$I-1=\log_{ceil(m/2)}(N+1)+1$</code></li>
+</ul>
+<h4 id="B-tree"><a href="#B-tree" class="headerlink" title="B+-tree"></a>B+-tree</h4><p>B+-tree是应文件系统而生的B-tree的一个变种，与B-tree的不同点在于：</p>
+<ul>
+<li>所有的叶子结点中包含了全部关键字的信息，及指向含有这些关键字记录的指针，且叶子结点本身依关键字的大小自小而大的顺序链接(而B-tree的叶子节点并没有包括全部需要查找的信息)。</li>
+<li>所有的非终端结点可以看成是索引部分，结点中仅含有其子树根结点中最大（或最小）关键字(而B-tree的非终节点也包含需要查找的有效信息)。</li>
+</ul>
+<p><img src="http://hi.csdn.net/attachment/201106/7/8394323_1307440587b6WG.jpg" alt="image"></p>
+<h4 id="B-tree为什么比B-tree更适合实际应用中操作系统的文件索引和数据库索引"><a href="#B-tree为什么比B-tree更适合实际应用中操作系统的文件索引和数据库索引" class="headerlink" title="B+-tree为什么比B-tree更适合实际应用中操作系统的文件索引和数据库索引"></a>B+-tree为什么比B-tree更适合实际应用中操作系统的文件索引和数据库索引</h4><ul>
+<li><p>B+-tree比B-tree的磁盘IO更少</p>
+<ul>
+<li>因为B+-tree的内部结点并没有指向关键字具体信息的指针，因此内部结构比B-tree小。也就是说同样的盘块，B+-tree可以存放更多的关键字信息，这样有利于降低B+-tree的高度，以减少IO</li>
+</ul>
+</li>
+<li><p>B+-tree的查询效率更加稳定</p>
+<ul>
+<li>由于非终结点并不是最终指向文件内容的结点，而只是叶子结点中关键字的索引。所以任何关键字的查找必须走一条从根结点到叶子结点的路。所有关键字查询的路径长度相同，导致每一个数据的查询效率相当</li>
+</ul>
+</li>
+</ul>
+<h4 id="B-tree-1"><a href="#B-tree-1" class="headerlink" title="B*-tree"></a>B*-tree</h4><p>B<em>-tree是B+-tree的变种，在B+-tree的基础上，增加了非根非叶结点指向兄弟的指针。且m阶B</em>-tree的非叶子结点的关键字数目至少有<code>$\frac{2}{3}m$</code>（B+-tree最少是<code>$\frac{1}{2}m$</code>），即块的最低使用率是<code>$\frac{2}{3}$</code>。</p>
+<p><img src="http://hi.csdn.net/attachment/201106/7/8394323_13074405869mSW.jpg" alt="image"></p>
+<ul>
+<li><p>B+-tree的分裂：当一个结点满时，分配一个新的结点，并将原结点中1/2的数据复制到新结点，最后在父结点中增加新结点的指针；B+-tree的分裂只影响原结点和父结点，而不会影响兄弟结点，所以它不需要指向兄弟的指针。</p>
+</li>
+<li><p>B*-tree的分裂：当一个结点满时，如果它的下一个兄弟结点未满，那么将一部分数据移到兄弟结点中，再在原结点插入关键字，最后修改父结点中兄弟结点的关键字（因为兄弟结点的关键字范围改变了）；如果兄弟也满了，则在原结点与兄弟结点之间增加新结点，并各复制1/3的数据到新结点，最后在父结点增加新结点的指针。</p>
+</li>
+<li><p>由分裂方式可知，B*-tree分配新结点的概率比B+-tree低，空间使用率更高 </p>
+</li>
+</ul>
+<h4 id="小结-3"><a href="#小结-3" class="headerlink" title="小结"></a>小结</h4><p>至此，B-tree，B+-tree和B*-tree的结构和优缺点介绍的差不多了，小结如下：</p>
+<ul>
+<li>B-tree是有序数组+平衡多叉树</li>
+<li>B+-tree是有序数组链表+平衡多叉树</li>
+<li>B*-tree是丰满的B+-tree</li>
+</ul>
+<p>从B-tree和B+-tree的结构上看，如果是范围查询，那么B+-tree会比B-tree更高效，因为所有数据都在叶子结点上，只需要找到范围边界的指针即可。而如果是频率查询，那么B-tree会比B+-tree更高效，因为B-tree的平均高度会比B+tree小。</p>
+<h4 id="MYSQL索引"><a href="#MYSQL索引" class="headerlink" title="MYSQL索引"></a>MYSQL索引</h4><ul>
+<li><p>磁盘：从磁盘的读写原理上看，查找时间（寻道时间）大概在5ms，盘片转动等待时间大概是1/(7200*2/60)=4ms，传输时间一般不到1ms，那么磁盘一次IO时间大概是10ms。数据库千万级的数据，每条都10ms的话，将是灾难。当然，在操作系统层面，磁盘的IO已经做了改善（局部性原理和磁盘预读），即每次IO读取数据时，不仅仅把地址对应的数据读取出来，而是把相邻的数据组成一个page后一起读出来，一般会读取pagesize的整数倍（即多个page），减少了IO的次数。</p>
+</li>
+<li><p>B+-tree：MYSQL索引是采用B+-tree的数据结构。理由很简单，经常做范围查询，且对任何数据查询的复杂度都相同，因为B+-tree的叶子结点都在同一层，即查任何数据的高度（复杂度）都相同。我们知道m阶B+-tree的复杂度取决于树的高度h，只需要使m足够大，即可让h变小，以减少IO。m是由什么决定的呢？是由关键字的大小（keysize），指针的大小（pointsize）以及pagesize决定的。即<code>$\max m=floor(pagesize/(keysize+pointsize))$</code>，其中floor函数为向下取整。</p>
+</li>
+</ul>
+<h5 id="MyISAM引擎和InnoDB引擎的索引实现"><a href="#MyISAM引擎和InnoDB引擎的索引实现" class="headerlink" title="MyISAM引擎和InnoDB引擎的索引实现"></a>MyISAM引擎和InnoDB引擎的索引实现</h5><ul>
+<li><p>MyISAM引擎</p>
+<ul>
+<li>B+-tree</li>
+<li>叶子结点存放真实数据的地址</li>
+<li>非聚集索引</li>
+<li><p>主索引和辅助索引结构无差别，只不过主索引的关键字要求唯一，辅助索引的可重复，下面是两种索引的结构</p>
+<p><img src="http://blog.codinglabs.org/uploads/pictures/theory-of-mysql-index/8.png" alt="image"></p>
+<p><img src="http://blog.codinglabs.org/uploads/pictures/theory-of-mysql-index/9.png" alt="image"></p>
+</li>
+</ul>
+</li>
+<li><p>InnoDB引擎</p>
+<ul>
+<li>B+-tree</li>
+<li>聚集索引</li>
+<li>主索引在叶子结点的data域存放真实数据，即数据文件也是主索引；辅助索引在叶子结点的data域存放的是相应记录的主键的值，而不是地址，以此引用主索引，因此辅助索引检索需要2次，第一次找到主键，第二次通过主键找到对应记录。</li>
+<li><p>必须有主键，如果没有显示定义主键，MYSQL会自动生成一个字段长度为6的长整型隐含字段作为主键</p>
+<p><img src="http://blog.codinglabs.org/uploads/pictures/theory-of-mysql-index/10.png" alt="image"></p>
+<p><img src="http://blog.codinglabs.org/uploads/pictures/theory-of-mysql-index/11.png" alt="image"></p>
+</li>
+</ul>
+</li>
+</ul>
+<p>由此可知，InnoDB引擎下，主键字段不应该过长，因为主键过长会会使所有的辅助索引都变大。且主键应该选择有序序列，否则会频繁做分裂调整B+-tree。</p>
+<h4 id="MYSQL索引优化"><a href="#MYSQL索引优化" class="headerlink" title="MYSQL索引优化"></a>MYSQL索引优化</h4><p>MYSQL索引的优化主要分结构优化（Scheme optimization）和查询优化（Query optimization）。</p>
+<h5 id="结构优化（Scheme-optimization）"><a href="#结构优化（Scheme-optimization）" class="headerlink" title="结构优化（Scheme optimization）"></a>结构优化（Scheme optimization）</h5><p>下面通过具体例子去理解结构优化：</p>
+<ul>
+<li><p>现在有表pc_menu_rank2，已建索引如下：</p>
+  <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">mysql&gt; show index from pc_menu_rank2;</span><br><span class="line">+---------------+------------+---------------+--------------+----------------+-----------+-------------+----------+--------+------+------------+---------+---------------+</span><br><span class="line">| Table         | Non_unique | Key_name      | Seq_in_index | Column_name    | Collation | Cardinality | Sub_part | Packed | Null | Index_type | Comment | Index_comment |</span><br><span class="line">+---------------+------------+---------------+--------------+----------------+-----------+-------------+----------+--------+------+------------+---------+---------------+</span><br><span class="line">| pc_menu_rank2 |          0 | PRIMARY       |            1 | entity_id      | A         |      667942 |     NULL | NULL   |      | BTREE      |         |               |</span><br><span class="line">| pc_menu_rank2 |          0 | PRIMARY       |            2 | aggr_id        | A         |    11355027 |     NULL | NULL   |      | BTREE      |         |               |</span><br><span class="line">| pc_menu_rank2 |          1 | entity_id     |            1 | entity_id      | A         |      195776 |     NULL | NULL   |      | BTREE      |         |               |</span><br><span class="line">| pc_menu_rank2 |          1 | entity_id     |            2 | self_entity_id | A         |      246848 |     NULL | NULL   |      | BTREE      |         |               |</span><br><span class="line">| pc_menu_rank2 |          1 | entity_id     |            3 | curr_date      | A         |     1032275 |     NULL | NULL   |      | BTREE      |         |               |</span><br><span class="line">| pc_menu_rank2 |          1 | idx_curr_date |            1 | curr_date      | A         |        2110 |     NULL | NULL   |      | BTREE      |         |               |</span><br><span class="line">+---------------+------------+---------------+--------------+----------------+-----------+-------------+----------+--------+------+------------+---------+---------------+</span><br><span class="line">6 rows in set (0.00 sec)</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>可以看出在pc_menu_rank2上有3个索引，分别是</p>
+<ul>
+<li>主索引PRIMARY：entity_id,aggr_id</li>
+<li>辅助索引entity_id：entity_id,self_entity_id,curr_date</li>
+<li>辅助索引：idx_curr_date</li>
+</ul>
+</li>
+<li><p>全列匹配：多个字段建立联合索引后，在where语句中使用联合索引进行全列精确匹配（即=，in，理论上对全列的匹配顺序会有影响，不过MYSQL的查询优化器会自动调整条件顺序）时，会用到索引</p>
+  <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">mysql&gt; explain select * from pc_menu_rank2 where entity_id=&apos;00006064&apos; and aggr_id=&apos;00037221af16003268b6e3547cae6e67&apos;;</span><br><span class="line">+----+-------------+---------------+-------+-------------------+---------+---------+-------------+------+-------+</span><br><span class="line">| id | select_type | table         | type  | possible_keys     | key     | key_len | ref         | rows | Extra |</span><br><span class="line">+----+-------------+---------------+-------+-------------------+---------+---------+-------------+------+-------+</span><br><span class="line">|  1 | SIMPLE      | pc_menu_rank2 | const | PRIMARY,entity_id | PRIMARY | 180     | const,const |    1 | NULL  |</span><br><span class="line">+----+-------------+---------------+-------+-------------------+---------+---------+-------------+------+-------+</span><br><span class="line">1 row in set (0.00 sec)</span><br></pre></td></tr></table></figure>
+<ul>
+<li>这里看到可能用了主索引和辅助索引，但实际是使用了主索引是因为对主索引做了全列精确匹配，返回rows=1。而可能用到辅助索引是因为最左前缀匹配原理，下面会讲。在写where子句时，尽量养成按索引字段的顺序加条件语句的习惯，尽管查询器会优化顺序。</li>
+</ul>
+</li>
+<li><p>最左前缀匹配：当where子句中只用了联合索引中的部分字段进行精确匹配时，会按照索引顺序从左往右先找到索引中最左列是否在where子句中，如果在则看是否全部列都在where子句中，如果都在则使用完整索引，否则只使用与最左列对应的部分索引</p>
+  <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">mysql&gt; explain select * from pc_menu_rank2 where entity_id=&apos;00006064&apos;;</span><br><span class="line">+----+-------------+---------------+------+-------------------+---------+---------+-------+-------+-------------+</span><br><span class="line">| id | select_type | table         | type | possible_keys     | key     | key_len | ref   | rows  | Extra       |</span><br><span class="line">+----+-------------+---------------+------+-------------------+---------+---------+-------+-------+-------------+</span><br><span class="line">|  1 | SIMPLE      | pc_menu_rank2 | ref  | PRIMARY,entity_id | PRIMARY | 50      | const | 15984 | Using where |</span><br><span class="line">+----+-------------+---------------+------+-------------------+---------+---------+-------+-------+-------------+</span><br><span class="line">1 row in set (0.01 sec)</span><br></pre></td></tr></table></figure>
+<ul>
+<li><p>可以看到key_len是50，实际用的事主索引的部分，返回rows=15984。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">mysql&gt; explain select * from pc_menu_rank2 where aggr_id=&apos;00037221af16003268b6e3547cae6e67&apos;;</span><br><span class="line">+----+-------------+---------------+------+---------------+------+---------+------+----------+-------------+</span><br><span class="line">| id | select_type | table         | type | possible_keys | key  | key_len | ref  | rows     | Extra       |</span><br><span class="line">+----+-------------+---------------+------+---------------+------+---------+------+----------+-------------+</span><br><span class="line">|  1 | SIMPLE      | pc_menu_rank2 | ALL  | NULL          | NULL | NULL    | NULL | 11355027 | Using where |</span><br><span class="line">+----+-------------+---------------+------+---------------+------+---------+------+----------+-------------+</span><br><span class="line">1 row in set (0.00 sec)</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>where子句没有使用索引的最左列，则不使用索引</p>
+</li>
+</ul>
+</li>
+<li><p>范围查询</p>
+  <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">mysql&gt; explain select * from pc_menu_rank2 where entity_id&gt;=&apos;00006064&apos; and aggr_id=&apos;00037221af16003268b6e3547cae6e67&apos;;</span><br><span class="line">+----+-------------+---------------+-------+-------------------+---------+---------+------+---------+-------------+</span><br><span class="line">| id | select_type | table         | type  | possible_keys     | key     | key_len | ref  | rows    | Extra       |</span><br><span class="line">+----+-------------+---------------+-------+-------------------+---------+---------+------+---------+-------------+</span><br><span class="line">|  1 | SIMPLE      | pc_menu_rank2 | range | PRIMARY,entity_id | PRIMARY | 180     | NULL | 5677513 | Using where |</span><br><span class="line">+----+-------------+---------------+-------+-------------------+---------+---------+------+---------+-------------+</span><br><span class="line">1 row in set (0.00 sec)</span><br></pre></td></tr></table></figure>
+   <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">mysql&gt; explain select * from pc_menu_rank2 where entity_id=&apos;00006064&apos; and aggr_id&gt;=&apos;00006064&apos;;</span><br><span class="line">+----+-------------+---------------+-------+-------------------+---------+---------+------+-------+-------------+</span><br><span class="line">| id | select_type | table         | type  | possible_keys     | key     | key_len | ref  | rows  | Extra       |</span><br><span class="line">+----+-------------+---------------+-------+-------------------+---------+---------+------+-------+-------------+</span><br><span class="line">|  1 | SIMPLE      | pc_menu_rank2 | range | PRIMARY,entity_id | PRIMARY | 180     | NULL | 15984 | Using where |</span><br><span class="line">+----+-------------+---------------+-------+-------------------+---------+---------+------+-------+-------------+</span><br><span class="line">1 row in set (0.01 sec)</span><br></pre></td></tr></table></figure>
+<ul>
+<li>使用范围查询时，同样遵守最左前缀匹配原则，范围查询的列必须是最左列，且范围查询后的列的索引部分不起作用，如上第一个sql只用了entity_id&gt;=’00006064’过滤出rows=5677513，而第二个sql同样只用了entity_id=’00006064’过滤出rows=15984</li>
+</ul>
+</li>
+<li><p>索引列有函数表达式</p>
+<pre><code>mysql&gt; explain select * from pc_menu_rank2 where entity_id+1 =&apos;00006064&apos;;
++----+-------------+---------------+------+---------------+------+---------+------+----------+-------------+
+| id | select_type | table         | type | possible_keys | key  | key_len | ref  | rows     | Extra       |
++----+-------------+---------------+------+---------------+------+---------+------+----------+-------------+
+|  1 | SIMPLE      | pc_menu_rank2 | ALL  | NULL          | NULL | NULL    | NULL | 11355027 | Using where |
++----+-------------+---------------+------+---------------+------+---------+------+----------+-------------+
+1 row in set (0.01 sec)
+</code></pre><ul>
+<li>不使用索引，因为MYSQL没那么只能解析表达式</li>
+</ul>
+</li>
+<li><p>索引选择性与前缀索引</p>
+<p>  索引并不是越多越好，因为本身也是消耗存储资源，且会加大插入更新删除的负担，在运行时也需要消耗资源维护。那么怎样去创建索引呢?</p>
+<ul>
+<li>索引选择性（Selectivity）<ul>
+<li>指不重复的索引值（也叫基数，Cardinality）与表记录数（#T）的比值：Index Selectivity = Cardinality / #T</li>
+<li>经验值是当索引选择性在0.1以下，则不在该列创建索引</li>
+</ul>
+</li>
+<li>前缀索引<ul>
+<li>与索引选择性有关，当单独列的选择性较低时，可以选择跟其他列一起组成联合索引。然而加入其他列就会使索引变长，那么可以选择其他列的部分前缀，形成联合索引，这样就兼顾了索引长度和索引选择性</li>
+</ul>
+</li>
+<li>InnoDB主键选择与插入优化<ul>
+<li>可以的话主键选择无业务含义的自增字段</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h5 id="查询优化（Query-optimization）"><a href="#查询优化（Query-optimization）" class="headerlink" title="查询优化（Query optimization）"></a>查询优化（Query optimization）</h5><ul>
+<li><p>查询优化神器：explain，结构如下</p>
+<p>  id|select_type|table|partitions|type|possible_keys|key|key_len|ref|rows|filtered|Extra<br>  —|—|—|—|—|—|—|—|—|—|—|—<br>  查询id|查询类型|查询对象|匹配到的分区|join类型|可能使用的索引|实际使用的索引|索引长度|索引对应的列|估计需要检索的行数|检索出来的行数占总行数的百分比|额外信息</p>
+<ul>
+<li>id：就是每个查询的标识，当这一行显示的事其他行union的结果时，id为null，同时在table列会显示<union m,n="">，M和N就是对应的查询id</union></li>
+<li>select_type：查询类型，具体如下：<ul>
+<li>SIMPLE：没有使用union或子查询的</li>
+<li>PRIMARY：最外层的查询</li>
+<li>UNION：union语句里的第二个或之后的查询对象的查询</li>
+<li>DEPENDENT UNION：在select里的union查询的第二个或之后的查询对象的查询</li>
+<li>UNION RESULT：union的结果</li>
+<li>SUBQUERY：where子查询里第一个查询对象的查询</li>
+<li>DEPENDENT SUBQUERY：在select里的子查询的第一个查询对象的查询</li>
+<li>DERIVED：在from后面的查询结果的查询</li>
+<li>UNCACHEABLE SUBQUERY</li>
+<li>UNCACHEABLE UNION</li>
+</ul>
+</li>
+<li>table：查询对象，具体如下<ul>
+<li>具体表或对应别名</li>
+<li><union m,n="">：M和N对应查询的id，即M union N后的结果</union></li>
+<li><derivedn>：在from后的查询的结果，N为对应的查询id</derivedn></li>
+</ul>
+</li>
+<li>partitions：显示匹配到的分区，只有当PARTITION关键字出现时，explain才会显示此列，如果非分区表，值为null</li>
+<li>type：join类型，具体如下：<ul>
+<li>system：该表只有1行（同系统表），是const的特殊类型</li>
+<li>const：开始查询时使用索引只匹配出1条记录</li>
+<li>eq_ref：a表和b表关联时，使用的索引时主键或者非空唯一索引，每次关联都是一一对应的。eq_ref是除了system和const这两种关联类型外最好的，在=运算符时出现</li>
+<li>ref：关联时索引只用了最左前缀或者不是主键和唯一索引</li>
+<li>fulltext：在使用了FULLTEXT index时出现</li>
+<li>ref_or_null：和ref类似，只不过在where子句中加了索引列为null的判断</li>
+<li>index_merge：标识了本次关联MYSQL优化器做了index merge，在key列会列出用到的索引，key_len则是使用到的索引部分的长度和</li>
+<li>unique_subquery：在where的子查询中，如果in子查询返回结果是主键时，会用unique_subquery替换eq_ref</li>
+<li>index_subquery：类似unique_subquery，in子查询里非唯一索引</li>
+<li>range：查询结果会返回一个范围。在索引列通过 =, &lt;&gt;, &gt;, &gt;=, &lt;, &lt;=, IS NULL, &lt;=&gt;, BETWEEN, or IN()运算符和常量连接时使用。ref列会返回null。</li>
+<li>index：跟ALL相同，当索引树被遍历时为index，通常比ALL高效，因为只遍历索引，会比table的数据小，此时Extra列的值为Using Index。或者从索引树开始做全表扫描，jion类型也是index，只不过此时Extra列不出现Using Index</li>
+<li>ALL：针对关联列都做了全表扫描。除非该表是const的，否则性能很差，需要建索引。</li>
+</ul>
+</li>
+<li>Extra：额外信息，具体解释参考<br>  <a href="https://dev.mysql.com/doc/refman/5.5/en/explain-output.html#explain-join-types" target="_blank" rel="noopener">https://dev.mysql.com/doc/refman/5.5/en/explain-output.html#explain-join-types</a></li>
+</ul>
+</li>
+</ul>
+</div><div class="tags"><a href="/tags/MYSQL/">MYSQL</a></div><div class="post-nav"><a class="pre" href="/2018/04/10/Vultr-VPS搭建SS-ShadowSocks-教程/">Vultr VPS搭建SS(ShadowSocks)教程</a><a class="next" href="/2018/04/10/hello-world/">Hello World</a></div></div></div></div><div class="pure-u-1-4 hidden_mid_and_down"><div id="sidebar"><div class="widget"><form class="search-form" action="//www.google.com/search" method="get" accept-charset="utf-8" target="_blank"><input type="text" name="q" maxlength="20" placeholder="Search"/><input type="hidden" name="sitesearch" value="https://wulouzi.github.io"/></form></div><div class="widget"><div class="widget-title"><i class="fa fa-folder-o"> 分类</i></div><ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DATABASE/">DATABASE</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/LITERATURE/">LITERATURE</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/翻墙/">翻墙</a></li></ul></div><div class="widget"><div class="widget-title"><i class="fa fa-star-o"> 标签</i></div><div class="tagcloud"><a href="/tags/MYSQL/" style="font-size: 15px;">MYSQL</a> <a href="/tags/仓央嘉措/" style="font-size: 15px;">仓央嘉措</a> <a href="/tags/vps-ss/" style="font-size: 15px;">vps+ss</a></div></div><div class="widget"><div class="widget-title"><i class="fa fa-file-o"> 最近文章</i></div><ul class="post-list"><li class="post-list-item"><a class="post-list-link" href="/2018/04/10/地空/">地空</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/04/10/Vultr-VPS搭建SS-ShadowSocks-教程/">Vultr VPS搭建SS(ShadowSocks)教程</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/04/10/MYSQL索引原理及优化/">MYSQL索引原理及优化</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/04/10/hello-world/">Hello World</a></li></ul></div><div class="widget"><div class="widget-title"><i class="fa fa-external-link"> 友情链接</i></div><ul></ul><a href="http://www.example1.com/" title="site-name1" target="_blank">site-name1</a><ul></ul><a href="http://www.example2.com/" title="site-name2" target="_blank">site-name2</a><ul></ul><a href="http://www.example3.com/" title="site-name3" target="_blank">site-name3</a></div></div></div><div class="pure-u-1 pure-u-md-3-4"><div id="footer">Copyright © 2018 <a href="/." rel="nofollow">逐浪钱塘.</a> Powered by<a rel="nofollow" target="_blank" href="https://hexo.io"> Hexo.</a><a rel="nofollow" target="_blank" href="https://github.com/tufu9441/maupassant-hexo"> Theme</a> by<a rel="nofollow" target="_blank" href="https://github.com/pagecho"> Cho.</a></div></div></div><a class="show" id="rocket" href="#top"></a><script type="text/javascript" src="/js/totop.js?v=0.0.0" async></script><script type="text/javascript" src="//cdn.bootcss.com/fancybox/3.2.5/jquery.fancybox.min.js" async></script><script type="text/javascript" src="/js/fancybox.js?v=0.0.0" async></script><link rel="stylesheet" type="text/css" href="//cdn.bootcss.com/fancybox/3.2.5/jquery.fancybox.min.css"><script type="text/javascript" src="/js/codeblock-resizer.js?v=0.0.0"></script><script type="text/javascript" src="/js/smartresize.js?v=0.0.0"></script></div></body></html>
