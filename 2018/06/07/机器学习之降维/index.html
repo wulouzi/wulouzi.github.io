@@ -1,0 +1,83 @@
+<!DOCTYPE html><html lang="[&quot;zh-CN&quot;,&quot;en&quot;,&quot;default&quot;]"><head><meta http-equiv="content-type" content="text/html; charset=utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport"><meta content="yes" name="apple-mobile-web-app-capable"><meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"><meta content="telephone=no" name="format-detection"><meta name="description"><title>机器学习之降维 | 逐浪钱塘</title><link rel="stylesheet" type="text/css" href="/css/style.css?v=0.0.0"><link rel="stylesheet" type="text/css" href="//cdn.bootcss.com/normalize/8.0.0/normalize.min.css"><link rel="stylesheet" type="text/css" href="//cdn.bootcss.com/pure/1.0.0/pure-min.css"><link rel="stylesheet" type="text/css" href="//cdn.bootcss.com/pure/1.0.0/grids-responsive-min.css"><link rel="stylesheet" href="//cdn.bootcss.com/font-awesome/4.7.0/css/font-awesome.min.css"><script type="text/javascript" src="//cdn.bootcss.com/jquery/3.3.1/jquery.min.js"></script><link rel="Shortcut Icon" type="image/x-icon" href="/favicon.ico"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="apple-touch-icon-precomposed" href="/apple-touch-icon.png"></head><body><div class="body_container"><div id="header"><div class="site-name"><h1 class="hidden">机器学习之降维</h1><a id="logo" href="/.">逐浪钱塘</a><p class="description">Stay hungry, stay foolish.</p></div><div id="nav-menu"><a class="current" href="/."><i class="fa fa-home"> 首页</i></a><a href="/archives/"><i class="fa fa-archive"> 归档</i></a><a href="/about/"><i class="fa fa-user"> 关于</i></a><a href="/atom.xml"><i class="fa fa-rss"> 订阅</i></a></div></div><div class="pure-g" id="layout"><div class="pure-u-1 pure-u-md-3-4"><div class="content_container"><div class="post"><h1 class="post-title">机器学习之降维</h1><div class="post-meta">Jun 7, 2018<span> | </span><span class="category"><a href="/categories/机器学习/">机器学习</a></span></div><div class="post-content"><h2 id="降维"><a href="#降维" class="headerlink" title="降维"></a>降维</h2><h3 id="特征工程"><a href="#特征工程" class="headerlink" title="特征工程"></a>特征工程</h3><p> “数据决定了机器学习的上限，而算法只是尽可能逼近这个上限”，这里的数据指的就是经过特征工程得到的数据。特征工程指的是把原始数据转变为模型的训练数据的过程，它的目的就是获取更好的训练数据特征，使得机器学习模型逼近这个上限。特征工程能使得模型的性能得到提升，有时甚至在简单的模型上也能取得不错的效果。特征工程在机器学习中占有非常重要的作用，一般认为括特征构建、特征提取、特征选择三个部分。</p>
+<ul>
+<li>特征构建：特征构建比较依赖于经验，是指从原始数据中人工的找出一些具有物理意义的特征。</li>
+<li>特征选择：选择重要特征子集，删除其余特征。</li>
+<li>特征提取：由原始特征形成较少的新特征。</li>
+</ul>
+<p>本次学习主要从降维的方法，学习特征选择和特征提取。下图是一张降维方法的全局视角：<br><img src="/images/pasted-6.png" alt="upload successful"></p>
+<h3 id="降维的作用"><a href="#降维的作用" class="headerlink" title="降维的作用"></a>降维的作用</h3><ul>
+<li>降低时间复杂度和空间复杂度</li>
+<li>节省提取不必要特征的开销</li>
+<li>去掉数据中的噪声</li>
+<li>较简单的模型在小数据集上有更好的鲁棒性（系统健壮性）</li>
+<li>当特征数量较少时，比较方便我们去解释数据，进而帮助我们提取知识</li>
+<li>有利于数据可视化</li>
+</ul>
+<h3 id="特征提取"><a href="#特征提取" class="headerlink" title="特征提取"></a>特征提取</h3><h4 id="主成分分析PCA-Principal-Component-Analysis"><a href="#主成分分析PCA-Principal-Component-Analysis" class="headerlink" title="主成分分析PCA(Principal Component Analysis)"></a>主成分分析PCA(Principal Component Analysis)</h4><p>PCA的核心思想是通过坐标轴的转换，寻找数据分布的最优子空间，从而达到降维，去相关的目的。因此，PCA是特征提取的过程。</p>
+<h5 id="知识点准备"><a href="#知识点准备" class="headerlink" title="知识点准备"></a>知识点准备</h5><ul>
+<li><strong>特征值与特征向量</strong>：设$A$是$n$阶矩阵，如果数$\lambda$和$n$维非零列向量$x$使关系式<script type="math/tex; mode=display">Ax=\lambda x 或 (A-\lambda E)x=0</script>  成立，那么称$\lambda$为矩阵$A$的特征值，非零向量$x$为矩阵$A$的对应特征值$\lambda$的特征向量</li>
+<li><strong>协方差</strong>：即共变异数，在概率论和统计学中用于衡量两个变量的总体误差。其中方差是协方差的一种特殊形式，即当两个变量相同的情况。期望值分别是$E[X]=\mu$和$E[Y]=v$的两个实数随机变量$X$和$Y$ 之间的协方差定义为：<ul>
+<li>$Cov(X,Y)=E[(X-\mu)(Y-v)]=E[X\cdot Y-X\cdot v-Y\cdot \mu+\mu v]=E[X\cdot Y]-vE[X]-\mu E[Y]+\mu v=E[X\cdot Y]-\mu v$</li>
+<li>由此可知，当$X$和$Y$相同时<ul>
+<li>$Cov(X,Y)=Cov(X,X)=E[(X-\mu)^2]=Var(X)$</li>
+</ul>
+</li>
+<li>如果$X$和$Y$是相互独立时，两者的协方差为0<ul>
+<li>$Cov(X,Y)=E[X\cdot Y]-\mu v=E[X]\cdot E[Y]-\mu v=0$</li>
+</ul>
+</li>
+<li>如过两个变量的协方差为0，不代表两个变量相对独立</li>
+</ul>
+</li>
+<li><strong>高斯分布（正态分布）</strong>：若随机变量$X$服从一个数学期望为$\mu$、标准方差为$\delta^2$的高斯分布，记为：<script type="math/tex; mode=display">X\sim N(\mu,\delta^2)</script>  正态分布的期望值$\mu$决定了其位置，其标准差$\delta$决定了分布的幅度。因其曲线呈钟形，因此人们又经常称之为钟形曲线。我们通常所说的标准正态分布是$\mu$ = 0,$\delta$ = 1的正态分布</li>
+<li><strong>正交向量</strong>：指点积为零的两个或多个向量</li>
+<li>当向量$b$是单位向量时，向量$a$在向量$b$上的投影就是向量$a$与向量$b$的内积<h5 id="直观理解"><a href="#直观理解" class="headerlink" title="直观理解"></a>直观理解</h5>现有原始数据（二维）分布如下：<br><img src="/images/pasted-7.png" alt="upload successful"><br>如果使用一组新的坐标来表示数据，可以选择一条直线，将原来的点在直线上做投影，结果如下：<br><img src="/images/pasted-8.png" alt="upload successful"><br>从上图可以看出，左边的直线做投影后，分布比右边的要更分散。换句话说就是用左边的直线对原数据做投影，比用右边的直线能更好的区分原始数据。而映射之后，新的数据的坐标已经从二维变成了一维。</li>
+</ul>
+<p>再看一个例子，是二维空间的三分类问题：<br><img src="/images/pasted-9.png" alt="upload successful"><br>本来可以使用分类算法对原始数据做分类，现在原始数据对x轴做投影，发现只需要一维的x坐标就能比较好的完成分类，降低了算法的复杂度。</p>
+<h5 id="PCA的具体步骤"><a href="#PCA的具体步骤" class="headerlink" title="PCA的具体步骤"></a>PCA的具体步骤</h5><ul>
+<li>第一步：找到第一个坐标，数据集在该坐标下方差最大（方差最大意味着在这个维度上可以很好的区分数据）</li>
+<li>第二步：找到第二个坐标，使该坐标与第一个坐标正交</li>
+<li>第三步：重复第二步，直到新的坐标数目与原来的特征数量相同，此时会发现数据大部分的方差都在前面几个坐标上，这些新的维度就是主成分。</li>
+</ul>
+<h5 id="主成分与原始变量的联系"><a href="#主成分与原始变量的联系" class="headerlink" title="主成分与原始变量的联系"></a>主成分与原始变量的联系</h5><ul>
+<li>每一个主成分都是各原始变量的线性组合</li>
+<li>主成分的数目大大少于原始变量的数目</li>
+<li>主成分保留了原始变量绝大部分信息</li>
+<li>各主成分之间互不相关</li>
+</ul>
+<h5 id="PCA公式推导"><a href="#PCA公式推导" class="headerlink" title="PCA公式推导"></a>PCA公式推导</h5><p>设对某一事物研究涉及$p$个指标，分别用$X_1,X_2,…X_p$表示，这$p$个指标构成的$p$维随机变量维$X=(X_1,X_2,…,X_p)$，设随机变量$X$的均值为$\mu$，协方差矩阵为$\sum$。<br>对$X$进行线性变换，可以形成新的综合变量，用$Y$表示，即$Y$可以表示为：</p>
+<script type="math/tex; mode=display">\left\{
+\begin{aligned}
+ Y_1 =u_{11}X_1 + u_{12}X_2 + ··· + u_{1p}X_p \\
+ Y_2=u_{21}X_1 + u_{22}X_2 + ··· + u_{2p}X_p \\
+ \cdots \\
+ Y_p=u_{p1}X_1 + u_{p2}X_2 + ··· + u_{pp}X_p \\
+\end{aligned}
+\right.</script><p>由于可以任意对原始变量进行上述变换，为了使变换后的结果取得更好的统计特性，我们总是希望$Y_i=u_i^TX$的方差尽可能大且各$Y_i$相互独立。由于</p>
+<script type="math/tex; mode=display">var(Y_i)=var(u_i^TX)=u_i^T\sum u_i</script><p>而对任意常数c，有</p>
+<script type="math/tex; mode=display">var(cu_i^TX)=cu_i^T\sum u_ic=c^2u_i^T\sum u_i</script><p>因此如果对$u_i$如果不加限制，可以使$var(Y_i)$无限增大，问题会变得毫无意义，因此作如下约束：</p>
+<ol>
+<li>$u_i^Tu_i=1，即u_{i1}^2+u_{i2}^2+\cdots+u_{ip}^2=1，i=1,2,3,\cdots,p$</li>
+<li>$Y_i与Y_j相互无关$</li>
+<li>$Y_1是X_1,X_2\cdots,X_p的一切满足原则1的线性组合中方差最大者；Y_2是与Y_1不相关的X_1,X_2\cdots,X_p的一切满足原则1的线性组合中方差最大者；Y_p是与Y_1,Y_2,\cdots,Y_{p-1}都不相关的X_1,X_2\cdots,X_p的一切满足原则1的线性组合中方差最大者$</li>
+</ol>
+<p>再看投影例子：<br><img src="/images/pasted-10.png" alt="upload successful"><br>我们要求最佳的$u$，使投影后的样本点方差最大，由于投影后的均值为0（中心化、标准化处理），因此方差为</p>
+<script type="math/tex; mode=display">\frac1m\sum_{i=1}^m({x^{(i)}}^Tu)^2=\frac1m\sum_{i=1}^mu^Tx^{(i)}{x^{(i)}}^Tu=u^T(\frac1m\sum_{i=1}^mx^{(i)}{x^{(i)}}^T)u</script><p>用$\lambda$表示$\frac1m\sum_{i=1}^m({x^{(i)}}^Tu)^2$，用$\sum$表示$\frac1m\sum_{i=1}^mx^{(i)}{x^{(i)}}^T$，那么上式可以写成：</p>
+<script type="math/tex; mode=display">\lambda=u^T\sum u</script><p>因为$u$是单位向量，即$u^Tu=1$，使上式左右两边都左乘$u$有：</p>
+<script type="math/tex; mode=display">u\lambda=\lambda u=uu^T\sum u=\sum u</script><p>即$\sum u=\lambda u$<br>可知，$\lambda$就是$\sum$的特征值，$u$是特征向量，最佳的投影直线是特征值$\lambda$最大时的特征向量，其次是$\lambda$第二大时的特征向量，依次类推。<br>因此，我们只要对协方差矩阵进行特征值分解，得到的前$k$大特征值对应的特征向量$u$，就是最佳的$k$维新特征，且这个$k$维新特征是正交的。</p>
+<p>现在我们知道协方差矩阵对应的特征值，就是新样本在对应特征向量下的方差，那么怎么取选择$k$值的大小呢，这里引入两个概念：方差贡献率和累计贡献率</p>
+<script type="math/tex; mode=display">称a_k=\frac{\lambda_k}{\lambda_1+\lambda_2+\cdots+\lambda_p}为第k个主成分Y_k的方差贡献率，称\frac{\sum_{i=1}^m\lambda_i}{\sum_{i=1}^p\lambda_i}为主成分Y_1,Y_2,\cdots,Y_m的累计贡献率</script><p>那么，最终新样本能保留多少多少原始信息，取决于我们最终选定$k$值。</p>
+<h5 id="PCA的不足之处"><a href="#PCA的不足之处" class="headerlink" title="PCA的不足之处"></a>PCA的不足之处</h5><ul>
+<li>选定的$k$维坐标系，会丢失一部分xinxi</li>
+<li>PCA是线性降维方法，然而有时候数据的非线性是很重要的，此时PCA效果不佳。通过引入核方法的PCA解决该问题</li>
+<li>PCA只在样本点服从高斯分布的时候比较有效，因此需要对数据做中心化、标准化处理</li>
+<li>特征根的大小决定了我们感兴趣信息的多少。即小特征根往往代表了噪声，但实际上，向小一点的特征根方向投影也有可能包括我们感兴趣的数据</li>
+<li>特征向量的方向是互相正交（orthogonal）的，这种正交性使得PCA容易受到Outlier的影响</li>
+<li>难于解释结果。例如在建立线性回归模型（Linear Regression Model）分析因变量（response）和第一个主成份的关系时，我们得到的回归系数（Coefficiency）不是某一个自变量（covariate）的贡献，而是对所有自变量的某个线性组合（Linear Combination）的贡献。 </li>
+<li>原始的pca算法会把所有的数据一次性的放入内存中，这在大数据集的情况下有可能会遇到问题，所以有人提出了增量式的pca，这在sklearn中是有实现的。</li>
+</ul>
+<h5 id="PCA实例"><a href="#PCA实例" class="headerlink" title="PCA实例"></a>PCA实例</h5><p>待添加</p>
+</div><div class="tags"><a href="/tags/降维/">降维</a></div><div class="post-nav"><a class="next" href="/2018/04/23/来自曾经仰慕过的人/">悦读·悦自己</a></div></div></div></div><div class="pure-u-1-4 hidden_mid_and_down"><div id="sidebar"><div class="widget"><form class="search-form" action="//www.google.com/search" method="get" accept-charset="utf-8" target="_blank"><input type="text" name="q" maxlength="20" placeholder="Search"/><input type="hidden" name="sitesearch" value="https://wulouzi.github.io"/></form></div><div class="widget"><div class="widget-title"><i class="fa fa-folder-o"> 分类</i></div><ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DATABASE/">DATABASE</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/LITERATURE/">LITERATURE</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/机器学习/">机器学习</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/翻墙/">翻墙</a></li></ul></div><div class="widget"><div class="widget-title"><i class="fa fa-star-o"> 标签</i></div><div class="tagcloud"><a href="/tags/MYSQL/" style="font-size: 15px;">MYSQL</a> <a href="/tags/vps-ss/" style="font-size: 15px;">vps+ss</a> <a href="/tags/仓央嘉措/" style="font-size: 15px;">仓央嘉措</a> <a href="/tags/降维/" style="font-size: 15px;">降维</a> <a href="/tags/杂/" style="font-size: 15px;">杂</a></div></div><div class="widget"><div class="widget-title"><i class="fa fa-file-o"> 最近文章</i></div><ul class="post-list"><li class="post-list-item"><a class="post-list-link" href="/2018/06/07/机器学习之降维/">机器学习之降维</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/04/23/来自曾经仰慕过的人/">悦读·悦自己</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/04/10/地空/">地空</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/04/10/Vultr-VPS搭建SS-ShadowSocks-教程/">Vultr VPS搭建SS(ShadowSocks)教程</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/04/10/MYSQL索引原理及优化/">MYSQL索引原理及优化</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/04/10/hello-world/">Hello World</a></li></ul></div><div class="widget"><div class="widget-title"><i class="fa fa-external-link"> 友情链接</i></div><ul></ul><a href="https://flarywu.github.io/" title="flary's blog" target="_blank">flary's blog</a><ul></ul><a href="http://www.example2.com/" title="site-name2" target="_blank">site-name2</a><ul></ul><a href="http://www.example3.com/" title="site-name3" target="_blank">site-name3</a></div></div></div><div class="pure-u-1 pure-u-md-3-4"><div id="footer">Copyright © 2018 <a href="/." rel="nofollow">逐浪钱塘.</a> Powered by<a rel="nofollow" target="_blank" href="https://hexo.io"> Hexo.</a><a rel="nofollow" target="_blank" href="https://github.com/tufu9441/maupassant-hexo"> Theme</a> by<a rel="nofollow" target="_blank" href="https://github.com/pagecho"> Cho.</a></div></div></div><a class="show" id="rocket" href="#top"></a><script type="text/javascript" src="/js/totop.js?v=0.0.0" async></script><script type="text/javascript" src="//cdn.bootcss.com/fancybox/3.2.5/jquery.fancybox.min.js" async></script><script type="text/javascript" src="/js/fancybox.js?v=0.0.0" async></script><link rel="stylesheet" type="text/css" href="//cdn.bootcss.com/fancybox/3.2.5/jquery.fancybox.min.css"><script type="text/x-mathjax-config">MathJax.Hub.Config({
+  tex2jax: {inlineMath: [['$','$'], ['\\(','\\)']]}
+  });
+</script><script type="text/javascript" src="//cdn.bootcss.com/mathjax/2.7.3/MathJax.js?config=TeX-MML-AM_CHTML" async></script><script type="text/javascript" src="/js/codeblock-resizer.js?v=0.0.0"></script><script type="text/javascript" src="/js/smartresize.js?v=0.0.0"></script></div></body></html>
