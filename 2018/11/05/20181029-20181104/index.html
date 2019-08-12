@@ -1,0 +1,206 @@
+<!DOCTYPE html><html lang="[&quot;zh-CN&quot;,&quot;en&quot;,&quot;default&quot;]"><head><meta http-equiv="content-type" content="text/html; charset=utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport"><meta content="yes" name="apple-mobile-web-app-capable"><meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"><meta content="telephone=no" name="format-detection"><meta name="description"><title>20181029-20181104 | 逐浪钱塘</title><link rel="stylesheet" type="text/css" href="/css/style.css?v=0.0.0"><link rel="stylesheet" type="text/css" href="//cdn.bootcss.com/normalize/8.0.0/normalize.min.css"><link rel="stylesheet" type="text/css" href="//cdn.bootcss.com/pure/1.0.0/pure-min.css"><link rel="stylesheet" type="text/css" href="//cdn.bootcss.com/pure/1.0.0/grids-responsive-min.css"><link rel="stylesheet" href="//cdn.bootcss.com/font-awesome/4.7.0/css/font-awesome.min.css"><script type="text/javascript" src="//cdn.bootcss.com/jquery/3.3.1/jquery.min.js"></script><link rel="Shortcut Icon" type="image/x-icon" href="/favicon.ico"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="apple-touch-icon-precomposed" href="/apple-touch-icon.png"></head><body><div class="body_container"><div id="header"><div class="site-name"><h1 class="hidden">20181029-20181104</h1><a id="logo" href="/.">逐浪钱塘</a><p class="description">Stay hungry, stay foolish.</p></div><div id="nav-menu"><a class="current" href="/."><i class="fa fa-home"> 首页</i></a><a href="/archives/"><i class="fa fa-archive"> 归档</i></a><a href="/about/"><i class="fa fa-user"> 关于</i></a><a href="/atom.xml"><i class="fa fa-rss"> 订阅</i></a></div></div><div class="pure-g" id="layout"><div class="pure-u-1 pure-u-md-3-4"><div class="content_container"><div class="post"><h1 class="post-title">20181029-20181104</h1><div class="post-meta">Nov 5, 2018<span> | </span><span class="category"><a href="/categories/周报/">周报</a></span></div><div class="post-content"><h3 id="本周工作"><a href="#本周工作" class="headerlink" title="本周工作"></a>本周工作</h3><h4 id="数据仓库交易宽表重构"><a href="#数据仓库交易宽表重构" class="headerlink" title="数据仓库交易宽表重构"></a>数据仓库交易宽表重构</h4><h5 id="确认业务流程"><a href="#确认业务流程" class="headerlink" title="确认业务流程"></a>确认业务流程</h5><p>餐饮场景也加入了线上到线下的流程，结合新零售，抽象成下面流程。其中配送部分包含外卖或快递。正向流程有终态，且在具体宽表里增加逆向流程标志，正逆向流程单独建表。下图是正向流程初版。<br><img src="/images/pasted-44.png" alt="upload successful"></p>
+<h5 id="设计订单类型"><a href="#设计订单类型" class="headerlink" title="设计订单类型"></a>设计订单类型</h5><p>用编码表示订单类型，不同码位表示不同含义，码位从左往右含义如下：</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>码位</th>
+<th>值</th>
+<th>含义</th>
+<th>取值逻辑</th>
+<th>checkPoint</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>第1位</td>
+<td>1</td>
+<td>餐饮</td>
+<td>coalesce(get_json_object(orderdetail.ext,’$.industryCode),0)=0</td>
+<td></td>
+</tr>
+<tr>
+<td>第1位</td>
+<td>2</td>
+<td>零售</td>
+<td>coalesce(get_json_object(orderdetail.ext,’$.industryCode),0)=1</td>
+<td></td>
+</tr>
+<tr>
+<td>第2位</td>
+<td>1</td>
+<td>线上开单</td>
+<td>在waitingorderdetail里的就是</td>
+<td></td>
+</tr>
+<tr>
+<td>第2位</td>
+<td>2</td>
+<td>线下开单</td>
+<td>在orderdetail且不在waitingorderdetail里的</td>
+<td></td>
+</tr>
+<tr>
+<td>第3位</td>
+<td>1</td>
+<td>餐饮堂食</td>
+<td>coalesce(get_json_object(orderdetail.ext,’$.industryCode),0)=0 and (orderdetail.order_from&lt; 100或waitingorderdetail.kind!=2)</td>
+<td>waitingorderdetail的order_id数据重复校验</td>
+</tr>
+<tr>
+<td>第3位</td>
+<td>2</td>
+<td>餐饮外卖</td>
+<td>coalesce(get_json_object(orderdetail.ext,’$.industryCode),0)=0 and (orderdetail.order_from&gt;=100或waitingorderdetail.kind=2)</td>
+<td>waitingorderdetail的order_id数据重复校验</td>
+</tr>
+<tr>
+<td>第3位</td>
+<td>3</td>
+<td>餐饮自提</td>
+<td>coalesce(get_json_object(orderdetail.ext,’$.industryCode),0)=0 and orderdetail.order_kind=5</td>
+<td></td>
+</tr>
+<tr>
+<td>第3位</td>
+<td>4</td>
+<td>零售堂食</td>
+<td>coalesce(get_json_object(orderdetail.ext,’$.industryCode),0)=1 and (orderdetail.order_from&lt; 100或waitingorderdetail.kind!=2)</td>
+<td></td>
+</tr>
+<tr>
+<td>第3位</td>
+<td>5</td>
+<td>零售自提</td>
+<td>coalesce(get_json_object(orderdetail.ext,’$.industryCode),0)=1 and无快递信息</td>
+<td></td>
+</tr>
+<tr>
+<td>第3位</td>
+<td>6</td>
+<td>零售快递</td>
+<td>coalesce(get_json_object(orderdetail.ext,’$.industryCode),0)=1 and有快递信息</td>
+<td></td>
+</tr>
+<tr>
+<td>第4-8位</td>
+<td>orderFrom/clientFrom</td>
+<td>具体订单来源、下单客户端类型</td>
+<td>orderdetail.order_from,waitingorderdetail.ext.clientFrom?</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h5 id="订单状态"><a href="#订单状态" class="headerlink" title="订单状态"></a>订单状态</h5><div class="table-container">
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>order_status</th>
+<th>取值逻辑</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>已下单</td>
+<td>1</td>
+<td>orderdetail.status=1 or waitingorderdetail.status=</td>
+</tr>
+<tr>
+<td>部分支付</td>
+<td>2</td>
+<td>应付金额大于实付金额</td>
+</tr>
+<tr>
+<td>完全支付</td>
+<td>3</td>
+<td>应付金额等于实付金额</td>
+</tr>
+<tr>
+<td>撤销关闭</td>
+<td>4</td>
+<td><strong>前提是先要确认订单逆向流程统一！</strong> orderdetail.status=3 or waitingorderdetail.status=3</td>
+</tr>
+<tr>
+<td>并单关闭</td>
+<td>5</td>
+<td>orderdetail.status=2</td>
+</tr>
+<tr>
+<td>正常关闭</td>
+<td>6</td>
+<td>orderdetail.status=4 or waitingorderdetail.status=8</td>
+</tr>
+<tr>
+<td>部分退款关闭</td>
+<td>7</td>
+<td><strong>前提是先要确认订单逆向流程统一！</strong> 退款金额小于实付金额</td>
+</tr>
+<tr>
+<td>完全退款关闭</td>
+<td>8</td>
+<td><strong>前提是先要确认订单逆向流程统一！</strong> 退款金额等于实付金额</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h5 id="配送状态"><a href="#配送状态" class="headerlink" title="配送状态"></a>配送状态</h5><div class="table-container">
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>delivery_status</th>
+<th>取值逻辑</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>待配送</td>
+<td></td>
+</tr>
+<tr>
+<td>2</td>
+<td>配送中</td>
+<td></td>
+</tr>
+<tr>
+<td>3</td>
+<td>配送完成</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4 id="营业概况报表改造"><a href="#营业概况报表改造" class="headerlink" title="营业概况报表改造"></a>营业概况报表改造</h4><ul>
+<li>上线中：dba建表、补历史数据</li>
+</ul>
+<h4 id="感想"><a href="#感想" class="headerlink" title="感想"></a>感想</h4><ul>
+<li>重构交易宽表的思路不是单纯的关联表，而是抽象出通用业务流程，然后针对这个流程去做事务事实表和累计快照事实表的结合体。总结了下这样做的优缺点，支撑按这条路走下去。<ul>
+<li>优点<ul>
+<li>加深数据中台模型开发者和使用者的业务理解，降低和产品、运营、销售同事沟通成本（因为双方说的都是业务了）</li>
+<li>降低对底层业务逻辑的学习成本</li>
+<li>提高模型开发者的建模能力</li>
+<li>利于推进数据中台模型建设</li>
+</ul>
+</li>
+<li>缺点<ul>
+<li>建模时间长</li>
+<li>增加模型维护成本</li>
+<li>对老模型有替换成本</li>
+<li>建模学习成本</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p>对比了优缺点，其实我们应该这样走下去，通过数据中台模型的建设，去提升业务理解和抽象能力，进而推动中台建设，这是个良性循环。</p>
+<h3 id="下周计划"><a href="#下周计划" class="headerlink" title="下周计划"></a>下周计划</h3><ul>
+<li>metabase使用</li>
+<li>指标体系</li>
+<li>数据仓库建设</li>
+<li>支持</li>
+<li>学习</li>
+</ul>
+</div><div class="tags"><a href="/tags/数据中台/">数据中台</a></div><div class="post-nav"><a class="pre" href="/2019/08/12/Flink快速部署项目-WordCount/">Flink快速部署项目+WordCount</a><a class="next" href="/2018/09/18/CNN/">CNN</a></div></div></div></div><div class="pure-u-1-4 hidden_mid_and_down"><div id="sidebar"><div class="widget"><form class="search-form" action="//www.google.com/search" method="get" accept-charset="utf-8" target="_blank"><input type="text" name="q" maxlength="20" placeholder="Search"/><input type="hidden" name="sitesearch" value="https://wulouzi.github.io"/></form></div><div class="widget"><div class="widget-title"><i class="fa fa-folder-o"> 分类</i></div><ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DATABASE/">DATABASE</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/Flink/">Flink</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/LITERATURE/">LITERATURE</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/周报/">周报</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/数据中台/">数据中台</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/机器学习/">机器学习</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/深度学习/">深度学习</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/翻墙/">翻墙</a></li></ul></div><div class="widget"><div class="widget-title"><i class="fa fa-star-o"> 标签</i></div><div class="tagcloud"><a href="/tags/数据中台/" style="font-size: 15px;">数据中台</a> <a href="/tags/Flink/" style="font-size: 15px;">Flink</a> <a href="/tags/仓央嘉措/" style="font-size: 15px;">仓央嘉措</a> <a href="/tags/杂/" style="font-size: 15px;">杂</a> <a href="/tags/CNN/" style="font-size: 15px;">CNN</a> <a href="/tags/奥林匹斯/" style="font-size: 15px;">奥林匹斯</a> <a href="/tags/降维/" style="font-size: 15px;">降维</a> <a href="/tags/MYSQL/" style="font-size: 15px;">MYSQL</a> <a href="/tags/vps-ss/" style="font-size: 15px;">vps+ss</a></div></div><div class="widget"><div class="widget-title"><i class="fa fa-file-o"> 最近文章</i></div><ul class="post-list"><li class="post-list-item"><a class="post-list-link" href="/2019/08/12/Flink快速部署项目-WordCount/">Flink快速部署项目+WordCount</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/11/05/20181029-20181104/">20181029-20181104</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/09/18/CNN/">CNN</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/07/27/奥林匹斯Olympus/">奥林匹斯Olympus</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/06/07/机器学习之降维/">机器学习之降维</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/04/23/来自曾经仰慕过的人/">悦读·悦自己</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/04/10/地空/">地空</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/04/10/Vultr-VPS搭建SS-ShadowSocks-教程/">Vultr VPS搭建SS(ShadowSocks)教程</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/04/10/MYSQL索引原理及优化/">MYSQL索引原理及优化</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/04/10/hello-world/">Hello World</a></li></ul></div><div class="widget"><div class="widget-title"><i class="fa fa-external-link"> 友情链接</i></div><ul></ul><a href="https://flarywu.github.io/" title="flary's blog" target="_blank">flary's blog</a><ul></ul><a href="http://www.example2.com/" title="site-name2" target="_blank">site-name2</a><ul></ul><a href="http://www.example3.com/" title="site-name3" target="_blank">site-name3</a></div></div></div><div class="pure-u-1 pure-u-md-3-4"><div id="footer">Copyright © 2019 <a href="/." rel="nofollow">逐浪钱塘.</a> Powered by<a rel="nofollow" target="_blank" href="https://hexo.io"> Hexo.</a><a rel="nofollow" target="_blank" href="https://github.com/tufu9441/maupassant-hexo"> Theme</a> by<a rel="nofollow" target="_blank" href="https://github.com/pagecho"> Cho.</a></div></div></div><a class="show" id="rocket" href="#top"></a><script type="text/javascript" src="/js/totop.js?v=0.0.0" async></script><script type="text/javascript" src="//cdn.bootcss.com/fancybox/3.2.5/jquery.fancybox.min.js" async></script><script type="text/javascript" src="/js/fancybox.js?v=0.0.0" async></script><link rel="stylesheet" type="text/css" href="//cdn.bootcss.com/fancybox/3.2.5/jquery.fancybox.min.css"><script type="text/javascript" src="/js/codeblock-resizer.js?v=0.0.0"></script><script type="text/javascript" src="/js/smartresize.js?v=0.0.0"></script></div></body></html>

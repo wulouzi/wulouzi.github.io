@@ -1,0 +1,82 @@
+<!DOCTYPE html><html lang="[&quot;zh-CN&quot;,&quot;en&quot;,&quot;default&quot;]"><head><meta http-equiv="content-type" content="text/html; charset=utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport"><meta content="yes" name="apple-mobile-web-app-capable"><meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"><meta content="telephone=no" name="format-detection"><meta name="description"><title>Flink快速部署项目+WordCount | 逐浪钱塘</title><link rel="stylesheet" type="text/css" href="/css/style.css?v=0.0.0"><link rel="stylesheet" type="text/css" href="//cdn.bootcss.com/normalize/8.0.0/normalize.min.css"><link rel="stylesheet" type="text/css" href="//cdn.bootcss.com/pure/1.0.0/pure-min.css"><link rel="stylesheet" type="text/css" href="//cdn.bootcss.com/pure/1.0.0/grids-responsive-min.css"><link rel="stylesheet" href="//cdn.bootcss.com/font-awesome/4.7.0/css/font-awesome.min.css"><script type="text/javascript" src="//cdn.bootcss.com/jquery/3.3.1/jquery.min.js"></script><link rel="Shortcut Icon" type="image/x-icon" href="/favicon.ico"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="apple-touch-icon-precomposed" href="/apple-touch-icon.png"></head><body><div class="body_container"><div id="header"><div class="site-name"><h1 class="hidden">Flink快速部署项目+WordCount</h1><a id="logo" href="/.">逐浪钱塘</a><p class="description">Stay hungry, stay foolish.</p></div><div id="nav-menu"><a class="current" href="/."><i class="fa fa-home"> 首页</i></a><a href="/archives/"><i class="fa fa-archive"> 归档</i></a><a href="/about/"><i class="fa fa-user"> 关于</i></a><a href="/atom.xml"><i class="fa fa-rss"> 订阅</i></a></div></div><div class="pure-g" id="layout"><div class="pure-u-1 pure-u-md-3-4"><div class="content_container"><div class="post"><h1 class="post-title">Flink快速部署项目+WordCount</h1><div class="post-meta">Aug 12, 2019<span> | </span><span class="category"><a href="/categories/Flink/">Flink</a></span></div><div class="post-content"><h1 id="快速部署项目、WordCount例子"><a href="#快速部署项目、WordCount例子" class="headerlink" title="快速部署项目、WordCount例子"></a>快速部署项目、WordCount例子</h1><p>Created: Jul 17, 2019 7:32 PM<br>Tags: flink基础</p>
+<h3 id="快速生成Flink项目"><a href="#快速生成Flink项目" class="headerlink" title="快速生成Flink项目"></a>快速生成Flink项目</h3><ul>
+<li>开发工具：idea+maven+git</li>
+</ul>
+<p>步骤：</p>
+<ol>
+<li>官网：<a href="https://ci.apache.org/projects/flink/flink-docs-release-1.8/dev/projectsetup/java_api_quickstart.html" target="_blank" rel="noopener">https://ci.apache.org/projects/flink/flink-docs-release-1.8/dev/projectsetup/java_api_quickstart.html</a></li>
+<li>本地创建目录：~/projects/flinkstudy</li>
+<li><p>进入目录执行：curl <a href="https://flink.apache.org/q/quickstart.sh" target="_blank" rel="noopener">https://flink.apache.org/q/quickstart.sh</a> | bash -s 1.8.0；可以查看<a href="https://flink.apache.org/q/quickstart.sh" target="_blank" rel="noopener">https://flink.apache.org/q/quickstart.sh</a>返回的代码，参考该代码后面可部署新的项目环境</p>
+<pre><code> #!/usr/bin/env bash
+
+ ################################################################################
+ #  Licensed to the Apache Software Foundation (ASF) under one
+ #  or more contributor license agreements.  See the NOTICE file
+ #  distributed with this work for additional information
+ #  regarding copyright ownership.  The ASF licenses this file
+ #  to you under the Apache License, Version 2.0 (the
+ #  &quot;License&quot;); you may not use this file except in compliance
+ #  with the License.  You may obtain a copy of the License at
+ #
+ #      http://www.apache.org/licenses/LICENSE-2.0
+ #
+ #  Unless required by applicable law or agreed to in writing, software
+ #  distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ #  See the License for the specific language governing permissions and
+ # limitations under the License.     
+ ################################################################################
+
+ PACKAGE=quickstart
+
+ mvn archetype:generate                                \
+   -DarchetypeGroupId=org.apache.flink                \
+   -DarchetypeArtifactId=flink-quickstart-java        \
+   -DarchetypeVersion=${1:-1.8.0}                            \
+   -DgroupId=org.myorg.quickstart                    \
+   -DartifactId=$PACKAGE                                \
+   -Dversion=0.1                                        \
+   -Dpackage=org.myorg.quickstart                    \
+   -DinteractiveMode=false
+
+ #
+ # Give some guidance
+ #
+ echo -e &quot;\\n\\n&quot;
+ echo -e &quot;\\tA sample quickstart Flink Job has been created.&quot;
+ echo -e &quot;\\tSwitch into the directory using&quot;
+ echo -e &quot;\\t\\t cd $PACKAGE&quot;
+ echo -e &quot;\\tImport the project there using your favorite IDE (Import it as a maven project)&quot;
+ echo -e &quot;\\tBuild a jar inside the directory using&quot;
+ echo -e &quot;\\t\\t mvn clean package&quot;
+ echo -e &quot;\\tYou will find the runnable jar in $PACKAGE/target&quot;
+ echo -e &quot;\\tConsult our website if you have any troubles: http://flink.apache.org/community.html#mailing-lists&quot;
+ echo -e &quot;\\n\\n&quot;
+</code></pre></li>
+<li><p>idea打开目录：创建batch和stream包，这个是学习用的，将批处理跟流处理的代码分开<br><img src="/images/pasted-50.png" alt="upload successful"></p>
+</li>
+</ol>
+<ol>
+<li>从github官网搜索flink，然后看flink-example。这里找了java版的批处理和流处理的WordCount的例子。可直接执行。</li>
+</ol>
+<h3 id="小结："><a href="#小结：" class="headerlink" title="小结："></a>小结：</h3><ul>
+<li>github学习新东西，可以从example和单元测试的代码入手，因为会包含核心功能，且相对容易理解</li>
+<li><p>Flink批处理和流处理的流程</p>
+<ol>
+<li><p>命令行参数获取（可不带参数）</p>
+<pre><code> final ParameterTool params = ParameterTool.fromArgs(args);
+</code></pre></li>
+<li><p>设置运行环境，是单机的jvm，还是单独的集群，还是on yarn等</p>
+<pre><code> final ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
+</code></pre></li>
+<li><p>获取参数</p>
+<pre><code> env.getConfig().setGlobalJobParameters(params);
+</code></pre></li>
+<li><p>获取输入：利用env封装的函数获取输入数据</p>
+</li>
+<li>处理输入：注意Map和flatMap的区别，Map是1个输入对应1个输出；flatMap是1个输入对应多个输出</li>
+<li>输出：可根据命令行输出到某目录下，也可以直接控制台输出等</li>
+</ol>
+</li>
+</ul>
+</div><div class="tags"><a href="/tags/Flink/">Flink</a></div><div class="post-nav"><a class="next" href="/2018/11/05/20181029-20181104/">20181029-20181104</a></div></div></div></div><div class="pure-u-1-4 hidden_mid_and_down"><div id="sidebar"><div class="widget"><form class="search-form" action="//www.google.com/search" method="get" accept-charset="utf-8" target="_blank"><input type="text" name="q" maxlength="20" placeholder="Search"/><input type="hidden" name="sitesearch" value="https://wulouzi.github.io"/></form></div><div class="widget"><div class="widget-title"><i class="fa fa-folder-o"> 分类</i></div><ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DATABASE/">DATABASE</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/Flink/">Flink</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/LITERATURE/">LITERATURE</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/周报/">周报</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/数据中台/">数据中台</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/机器学习/">机器学习</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/深度学习/">深度学习</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/翻墙/">翻墙</a></li></ul></div><div class="widget"><div class="widget-title"><i class="fa fa-star-o"> 标签</i></div><div class="tagcloud"><a href="/tags/数据中台/" style="font-size: 15px;">数据中台</a> <a href="/tags/Flink/" style="font-size: 15px;">Flink</a> <a href="/tags/仓央嘉措/" style="font-size: 15px;">仓央嘉措</a> <a href="/tags/杂/" style="font-size: 15px;">杂</a> <a href="/tags/CNN/" style="font-size: 15px;">CNN</a> <a href="/tags/奥林匹斯/" style="font-size: 15px;">奥林匹斯</a> <a href="/tags/降维/" style="font-size: 15px;">降维</a> <a href="/tags/MYSQL/" style="font-size: 15px;">MYSQL</a> <a href="/tags/vps-ss/" style="font-size: 15px;">vps+ss</a></div></div><div class="widget"><div class="widget-title"><i class="fa fa-file-o"> 最近文章</i></div><ul class="post-list"><li class="post-list-item"><a class="post-list-link" href="/2019/08/12/Flink快速部署项目-WordCount/">Flink快速部署项目+WordCount</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/11/05/20181029-20181104/">20181029-20181104</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/09/18/CNN/">CNN</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/07/27/奥林匹斯Olympus/">奥林匹斯Olympus</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/06/07/机器学习之降维/">机器学习之降维</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/04/23/来自曾经仰慕过的人/">悦读·悦自己</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/04/10/地空/">地空</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/04/10/Vultr-VPS搭建SS-ShadowSocks-教程/">Vultr VPS搭建SS(ShadowSocks)教程</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/04/10/MYSQL索引原理及优化/">MYSQL索引原理及优化</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/04/10/hello-world/">Hello World</a></li></ul></div><div class="widget"><div class="widget-title"><i class="fa fa-external-link"> 友情链接</i></div><ul></ul><a href="https://flarywu.github.io/" title="flary's blog" target="_blank">flary's blog</a><ul></ul><a href="http://www.example2.com/" title="site-name2" target="_blank">site-name2</a><ul></ul><a href="http://www.example3.com/" title="site-name3" target="_blank">site-name3</a></div></div></div><div class="pure-u-1 pure-u-md-3-4"><div id="footer">Copyright © 2019 <a href="/." rel="nofollow">逐浪钱塘.</a> Powered by<a rel="nofollow" target="_blank" href="https://hexo.io"> Hexo.</a><a rel="nofollow" target="_blank" href="https://github.com/tufu9441/maupassant-hexo"> Theme</a> by<a rel="nofollow" target="_blank" href="https://github.com/pagecho"> Cho.</a></div></div></div><a class="show" id="rocket" href="#top"></a><script type="text/javascript" src="/js/totop.js?v=0.0.0" async></script><script type="text/javascript" src="//cdn.bootcss.com/fancybox/3.2.5/jquery.fancybox.min.js" async></script><script type="text/javascript" src="/js/fancybox.js?v=0.0.0" async></script><link rel="stylesheet" type="text/css" href="//cdn.bootcss.com/fancybox/3.2.5/jquery.fancybox.min.css"><script type="text/javascript" src="/js/codeblock-resizer.js?v=0.0.0"></script><script type="text/javascript" src="/js/smartresize.js?v=0.0.0"></script></div></body></html>
